@@ -1,0 +1,13 @@
+What it is?
+===========
+
+sref is a quick clone of pureref. sref is a tool to display a collection
+of images all in the same graphical window, allowing to pan around, move
+and scale images.
+
+Building
+========
+
+To build sref you will need SDL2 with an openGL backend, and run:
+
+    make
