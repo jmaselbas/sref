@@ -406,7 +406,6 @@ init(void)
 	window = SDL_CreateWindow(argv0, SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
 				  width, height, SDL_WINDOW_OPENGL
 				  | SDL_WINDOW_RESIZABLE
-				  | SDL_WINDOW_MAXIMIZED
 				  );
 
 	if (!window)
