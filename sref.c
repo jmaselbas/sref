@@ -107,6 +107,7 @@ create_image(size_t w, size_t h, GLenum format, GLenum type, void *data)
 	glTexParameteri(img.type, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 	glTexParameteri(img.type, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	glTexParameteri(img.type, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 
 	/* for now input format is the same as the texture format */
 	glTexImage2D(img.type, 0, format, w, h, 0, format, type, data);
