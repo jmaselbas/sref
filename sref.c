@@ -232,6 +232,8 @@ input(void)
 			break;
 		case SDL_KEYDOWN:
 			switch (e.key.keysym.sym) {
+			case SDLK_HOME:
+			case SDLK_KP_0:
 			case SDLK_0:
 				zoom = 10;
 				break;
