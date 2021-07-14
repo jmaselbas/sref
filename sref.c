@@ -90,6 +90,13 @@ die(const char *fmt, ...)
 	exit(1);
 }
 
+static void load_at(const char *name, int x, int y);
+static void
+load(const char *name)
+{
+	load_at(name, 0, 0);
+}
+
 static struct image
 create_image(size_t w, size_t h, GLenum format, GLenum type, void *data)
 {
@@ -249,6 +256,11 @@ input(void)
 			zoom += e.wheel.y;
 			if (zoom < 0)
 				zoom = 0;
+			break;
+		case SDL_DROPFILE:
+			load_at(e.drop.file,
+				(mousex - (int)width / 2) / (0.1 * zoom) - orgx,
+				(mousey - (int)height / 2) / (0.1 * zoom) - orgy);
 			break;
 		case SDL_KEYUP:
 		case SDL_WINDOWEVENT:
@@ -429,7 +441,7 @@ init(void)
 }
 
 static void
-load(const char *name)
+load_at(const char *name, int x, int y)
 {
 	GLenum format;
 	int w, h, n;
@@ -463,6 +475,8 @@ load(const char *name)
 		format = GL_RED;
 
 	images[image_count] = create_image(w, h, format, GL_UNSIGNED_BYTE, data);
+	images[image_count].posx = x - w / 2;
+	images[image_count].posy = y - h / 2;
 	image_count++;
 
 	stbi_image_free(data);
