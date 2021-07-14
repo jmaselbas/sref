@@ -105,6 +105,11 @@ static struct image
 create_image(size_t w, size_t h, GLenum format, GLenum type, void *data)
 {
 	struct image img = { 0 };
+	GLint rrr1[] = {GL_RED, GL_RED, GL_RED, GL_ONE};
+	GLint rrra[] = {GL_RED, GL_RED, GL_RED, GL_ALPHA};
+	GLint rgb1[] = {GL_RED, GL_GREEN, GL_BLUE, GL_ONE};
+	GLint rgba[] = {GL_RED, GL_GREEN, GL_BLUE, GL_ALPHA};
+	GLint *swiz = rrr1;
 
 	img.type = GL_TEXTURE_2D;
 	img.width = w;
@@ -114,6 +119,16 @@ create_image(size_t w, size_t h, GLenum format, GLenum type, void *data)
 	glGenTextures(1, &img.id);
 	glBindTexture(img.type, img.id);
 
+	if (format == GL_RED)
+		swiz = rrr1;
+	else if (format == GL_RG)
+		swiz = rrra;
+	else if (format == GL_RGB)
+		swiz = rgb1;
+	else if (format == GL_RGBA)
+		swiz = rgba;
+
+	glTexParameteriv(img.type, GL_TEXTURE_SWIZZLE_RGBA, swiz);
 	glTexParameteri(img.type, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 	glTexParameteri(img.type, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 	glTexParameteri(img.type, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
