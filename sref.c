@@ -6,9 +6,12 @@
 #include <stdarg.h>
 #include <fcntl.h>
 #include <errno.h>
+#include <locale.h>
 
 #include "glad.h"
-#include <SDL.h>
+#include <X11/Xlib.h>
+#include <X11/cursorfont.h>
+#include <GL/glx.h>
 #include "stb_image.h"
 
 #include "arg.h"
@@ -44,7 +47,7 @@ char *argv0;
 
 int orgx;
 int orgy;
-int zoom = 10;
+float zoom = 1;
 int mousex;
 int mousey;
 int xrel;
@@ -61,11 +64,12 @@ enum action {
 };
 enum action act;
 
-SDL_Window *window;
-SDL_GLContext context;
-SDL_Cursor *scale_cur;
-SDL_Cursor *move_cur;
-SDL_Cursor *grab_cur;
+static int scr;
+static Display *dpy;
+static Window root, win;
+Atom wmprotocols, wmdeletewin;
+Cursor movecursor, grabcursor, scalecursor, defaultcursor;
+GLXContext ctx;
 
 GLuint quad_vao;
 GLuint quad_vbo;
@@ -213,89 +217,6 @@ shader_init(void)
 	glEnableVertexAttribArray(loc_in_pos);
 }
 
-static void
-input(void)
-{
-	SDL_Event e;
-	int w, h;
-
-	SDL_GL_GetDrawableSize(window, &w, &h);
-	width  = (w < 0) ? 0 : w;
-	height = (h < 0) ? 0 : h;
-
-	xrel = yrel = 0;
-
-	while (SDL_PollEvent(&e)) {
-		switch (e.type) {
-		case SDL_QUIT:
-			exit(0);
-			break;
-		case SDL_KEYDOWN:
-			switch (e.key.keysym.sym) {
-			case SDLK_HOME:
-			case SDLK_KP_0:
-			case SDLK_0:
-				zoom = 10;
-				break;
-			}
-			break;
-		case SDL_MOUSEMOTION:
-			mousex = e.motion.x;
-			mousey = height - e.motion.y;
-			xrel += e.motion.xrel;
-			yrel -= e.motion.yrel;
-			break;
-		case SDL_MOUSEBUTTONDOWN:
-		case SDL_MOUSEBUTTONUP:
-			if (e.button.button == SDL_BUTTON_MIDDLE)
-				mclick = e.button.state == SDL_PRESSED;
-			if (e.button.button == SDL_BUTTON_LEFT)
-				lclick = e.button.state == SDL_PRESSED;
-			if (e.button.button == SDL_BUTTON_RIGHT)
-				rclick = e.button.state == SDL_PRESSED;
-			break;
-		case SDL_MOUSEWHEEL:
-			zoom += e.wheel.y;
-			if (zoom < 0)
-				zoom = 0;
-			break;
-		case SDL_DROPFILE:
-			load_at(e.drop.file,
-				(mousex - (int)width / 2) / (0.1 * zoom) - orgx,
-				(mousey - (int)height / 2) / (0.1 * zoom) - orgy);
-			break;
-		case SDL_KEYUP:
-		case SDL_WINDOWEVENT:
-			break;
-		}
-	}
-
-	if (lclick) {
-		if (act != MOVE)
-			SDL_SetCursor(move_cur);
-		act = MOVE;
-	} else if (rclick) {
-		if (act != MOVE)
-			SDL_SetCursor(scale_cur);
-		act = SCALE;
-	} else if (mclick) {
-		if (act != GRAB)
-			SDL_SetCursor(grab_cur);
-		act = GRAB;
-	} else {
-		if (act != NONE)
-			SDL_SetCursor(SDL_GetDefaultCursor());
-		act = NONE;
-	}
-
-	xrel /= 0.1 * zoom;
-	yrel /= 0.1 * zoom;
-	if (act == GRAB) {
-		orgx += xrel;
-		orgy += yrel;
-	}
-}
-
 static int
 mouse_in(int x, int y, int w, int h)
 {
@@ -307,7 +228,7 @@ mouse_in(int x, int y, int w, int h)
 static int
 mouse_in_img(struct image *i)
 {
-	float z = 0.1 * zoom;
+	float z = zoom;
 	int x = z * (i->posx + orgx) + width / 2;
 	int y = z * (i->posy + orgy) + height / 2;
 	int w = z * (i->width * i->scale);
@@ -333,7 +254,7 @@ scissor(int x, int y, int w, int h, int px)
 static void
 render_img(struct image *i)
 {
-	float z = 0.1 * zoom;
+	float z = zoom;
 	int x = z * (i->posx + orgx) + width / 2;
 	int y = z * (i->posy + orgy) + height / 2;
 	int w = z * (i->width * i->scale);
@@ -402,43 +323,94 @@ update(void)
 	for (i = 0; i < image_count; i++)
 		render_img(&images[i]);
 
-	SDL_GL_SwapWindow(window);
+	glXSwapBuffers(dpy, win);
+}
+
+static void
+glx_init(void)
+{
+	GLint maj, min;
+
+	glXQueryVersion(dpy, &maj, &min);
+	if (maj <= 1 && min < 2)
+		die("GLX 1.2 or greater is required.\n");
+
+	int glxAttribs[] = {
+		GLX_X_RENDERABLE,   True,
+		GLX_DRAWABLE_TYPE,  GLX_WINDOW_BIT,
+		GLX_RENDER_TYPE,    GLX_RGBA_BIT,
+		GLX_RED_SIZE,       8,
+		GLX_GREEN_SIZE,     8,
+		GLX_BLUE_SIZE,      8,
+		GLX_ALPHA_SIZE,     8,
+		GLX_DOUBLEBUFFER,   True,
+		None
+	};
+	int count;
+	GLXFBConfig *fbc = glXChooseFBConfig(dpy, scr, glxAttribs, &count);
+	if (fbc == NULL || count <= 0)
+		die("No framebuffer\n");
+
+	XVisualInfo *visual = glXGetVisualFromFBConfig(dpy, fbc[0]);
+	if (!visual)
+		die("Could not create correct visual window.\n");
+
+	ctx = glXCreateContext(dpy, visual, NULL, GL_TRUE);
+	glXMakeCurrent(dpy, win, ctx);
+
+	if (!gladLoadGLLoader((GLADloadproc) glXGetProcAddress))
+		die("GL init failed\n");
+}
+
+static void
+x_init(void)
+{
+	XSetWindowAttributes wa = { 0 };
+//	wa.background_pixel = scheme[SchemeNorm][ColBg].pixel;
+	wa.background_pixel = 0x191919;
+	wa.event_mask = ExposureMask | VisibilityChangeMask
+		| FocusChangeMask | KeyPressMask | StructureNotifyMask
+		| PointerMotionMask | ButtonPressMask | ButtonReleaseMask;
+
+	if (!setlocale(LC_CTYPE, "") || !XSupportsLocale())
+		fputs("warning: no locale support\n", stderr);
+	if (!XSetLocaleModifiers(""))
+		fputs("warning: no locale modifiers support\n", stderr);
+
+	dpy = XOpenDisplay(NULL);
+	if (!dpy)
+		die("cannot open display");
+
+	scr = DefaultScreen(dpy);
+	root = RootWindow(dpy, scr);
+	win = XCreateWindow(dpy, root, 0, 0, width, height, 0,
+	                    CopyFromParent, CopyFromParent, CopyFromParent,
+	                    CWBackPixel | CWEventMask, &wa);
+	if (!win)
+		die("fail to create window");
+
+	wmprotocols = XInternAtom(dpy, "WM_PROTOCOLS", False);
+	wmdeletewin = XInternAtom(dpy, "WM_DELETE_WINDOW", False);
+	XSetWMProtocols(dpy, win, &wmdeletewin, 1);
+
+	movecursor = XCreateFontCursor(dpy, XC_tcross);
+	grabcursor = XCreateFontCursor(dpy, XC_hand1);
+	scalecursor = XCreateFontCursor(dpy, XC_sizing);
+	defaultcursor = XCreateFontCursor(dpy, XC_arrow);
+
+	XStoreName(dpy, win, "sref");
+
+	/* do opengl init before XMapWindow */
+	glx_init();
+
+	XMapWindow(dpy, win);
+	XSync(dpy, False);
 }
 
 static void
 init(void)
 {
-	if (SDL_InitSubSystem(SDL_INIT_VIDEO))
-		die("SDL init failed: %s\n", SDL_GetError());
-
-	SDL_GL_SetAttribute(SDL_GL_RED_SIZE, 8);
-	SDL_GL_SetAttribute(SDL_GL_GREEN_SIZE, 8);
-	SDL_GL_SetAttribute(SDL_GL_BLUE_SIZE, 8);
-	SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, SDL_TRUE);
-	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
-
-	window = SDL_CreateWindow(argv0, SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
-				  width, height, SDL_WINDOW_OPENGL
-				  | SDL_WINDOW_RESIZABLE
-				  );
-
-	if (!window)
-		die("Failed to create window: %s\n", SDL_GetError());
-
-	context = SDL_GL_CreateContext(window);
-	if (!context)
-		die("Failed to create openGL context: %s\n", SDL_GetError());
-
-	SDL_GL_SetSwapInterval(1);
-
-	if (!gladLoadGLLoader((GLADloadproc) SDL_GL_GetProcAddress))
-		die("GL init failed\n");
-
-	scale_cur = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_SIZEWE);
-	move_cur = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_SIZEALL);
-	grab_cur = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_HAND);
-
+	x_init();
 	shader_init();
 }
 
@@ -485,6 +457,106 @@ load_at(const char *name, int x, int y)
 }
 
 static void
+resize(int w, int h)
+{
+	width  = (w < 0) ? 0 : w;
+	height = (h < 0) ? 0 : h;
+}
+
+static void
+run(void)
+{
+	XEvent ev;
+
+	update();
+	xrel = yrel = 0;
+
+	while (!XNextEvent(dpy, &ev)) {
+
+		if (!XFilterEvent(&ev, None))
+		switch (ev.type) {
+		case KeyPress:
+			switch (XLookupKeysym(&ev.xkey, 1)) {
+			case XK_0:
+			case XK_KP_0:
+			case XK_Home:
+				zoom = 1;
+				break;
+			}
+			break;
+		case MotionNotify:
+			xrel -= mousex - ev.xmotion.x;
+			yrel -= mousey - (height - ev.xmotion.y);
+
+			mousex = ev.xmotion.x;
+			mousey = height - ev.xmotion.y;
+			break;
+		case ButtonPress:
+		case ButtonRelease:
+			if (ev.xbutton.button == 4) /* mouse wheel up */
+				zoom += zoom * 0.1 * (ev.type == ButtonPress);
+			if (ev.xbutton.button == 5) /* mouse wheel down */
+				zoom -= zoom * 0.1 * (ev.type == ButtonPress);
+			if (ev.xbutton.button == 1)
+				lclick = ev.type == ButtonPress;
+			if (ev.xbutton.button == 2)
+				mclick = ev.type == ButtonPress;
+			if (ev.xbutton.button == 3)
+				rclick = ev.type == ButtonPress;
+			break;
+		case ConfigureNotify:
+			resize(ev.xconfigure.width, ev.xconfigure.height);
+			break;
+		case VisibilityNotify:
+			if (ev.xvisibility.state != VisibilityUnobscured)
+				XRaiseWindow(dpy, win);
+			break;
+		case ClientMessage:
+			if (ev.xclient.message_type == wmprotocols) {
+				/* assume wmdeletewin */
+				return;
+			}
+			break;
+		default:
+			break;
+		}
+
+		if (XPending(dpy) == 0) {
+			if (lclick) {
+				if (act != MOVE)
+					XDefineCursor(dpy, win, movecursor);
+				act = MOVE;
+			} else if (rclick) {
+				if (act != SCALE)
+					XDefineCursor(dpy, win, scalecursor);
+				act = SCALE;
+			} else if (mclick) {
+				if (act != GRAB)
+					XDefineCursor(dpy, win, grabcursor);
+				act = GRAB;
+			} else {
+				if (act != NONE)
+					XDefineCursor(dpy, win, defaultcursor);
+				act = NONE;
+			}
+
+			if (zoom < 0.01)
+				zoom = 0.01;
+
+			xrel /= zoom;
+			yrel /= zoom;
+			if (act == GRAB) {
+				orgx += xrel;
+				orgy += yrel;
+			}
+
+			update();
+			xrel = yrel = 0;
+		}
+	}
+}
+
+static void
 usage(void)
 {
 	printf("usage: %s [image_files ...]\n", argv0);
@@ -506,10 +578,10 @@ main(int argc, char **argv)
 	for (i = 0; i < argc; i++)
 		load(argv[i]);
 
-	while (1) {
-		input();
-		update();
-	}
+	run();
+
+	XDestroyWindow(dpy, win);
+	XCloseDisplay(dpy);
 
 	return 0;
 }
