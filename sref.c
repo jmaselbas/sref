@@ -160,7 +160,7 @@ shader_init(void)
 		"uniform float scale;\n"
 		"void main()\n"
 		"{\n"
-		"	vec2 pos = -1 + (in_pos * ext + off) * 2 / res;\n"
+		"	vec2 pos = -1.0 + (in_pos * ext + off) * 2.0 / res;\n"
 		"	gl_Position = vec4(pos.x, pos.y, 0.0, 1.0);\n"
 		"	tex = in_pos;\n"
 		"}\n";
