@@ -344,14 +344,11 @@ update(void)
 static void
 glx_init(void)
 {
+	GLXContext (*glXCreateContextAttribsARB)(Display*, GLXFBConfig, GLXContext, Bool, const int*) = NULL;
 	GLint maj, min;
-
-	glXQueryVersion(dpy, &maj, &min);
-	if (maj <= 1 && min < 2)
-		die("GLX 1.2 or greater is required.\n");
-
-	int glxAttribs[] = {
+	int glx_attribs[] = {
 		GLX_X_RENDERABLE,   True,
+		GLX_X_VISUAL_TYPE,  GLX_TRUE_COLOR,
 		GLX_DRAWABLE_TYPE,  GLX_WINDOW_BIT,
 		GLX_RENDER_TYPE,    GLX_RGBA_BIT,
 		GLX_RED_SIZE,       8,
@@ -361,20 +358,39 @@ glx_init(void)
 		GLX_DOUBLEBUFFER,   True,
 		None
 	};
+	int ctx_attribs[] = {
+		GLX_CONTEXT_MAJOR_VERSION_ARB, 3,
+		GLX_CONTEXT_MINOR_VERSION_ARB, 3,
+		None
+	};
+	GLXFBConfig *fbc;
+	XVisualInfo *vis;
 	int count;
-	GLXFBConfig *fbc = glXChooseFBConfig(dpy, scr, glxAttribs, &count);
+
+	glXQueryVersion(dpy, &maj, &min);
+	if (maj <= 1 && min < 3)
+		die("GLX 1.3 or greater is required.\n");
+
+	fbc = glXChooseFBConfig(dpy, scr, glx_attribs, &count);
 	if (fbc == NULL || count <= 0)
 		die("No framebuffer\n");
 
-	XVisualInfo *visual = glXGetVisualFromFBConfig(dpy, fbc[0]);
-	if (!visual)
+	vis = glXGetVisualFromFBConfig(dpy, fbc[0]);
+	if (!vis)
 		die("Could not create correct visual window.\n");
 
-	ctx = glXCreateContext(dpy, visual, NULL, GL_TRUE);
+	glXCreateContextAttribsARB = (void *) glXGetProcAddressARB((const GLubyte *) "glXCreateContextAttribsARB");
+	if (!glXCreateContextAttribsARB)
+		die("Failed to load glXCreateContextAttribsARB\n");
+
+	ctx = glXCreateContextAttribsARB(dpy, fbc[0], 0, True, ctx_attribs);
 	glXMakeCurrent(dpy, win, ctx);
 
 	if (!gladLoadGLLoader((GLADloadproc) glXGetProcAddress))
 		die("GL init failed\n");
+
+	XFree(fbc);
+	XFree(vis);
 }
 
 static void
