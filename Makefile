@@ -10,7 +10,7 @@ OBJ = $(SRC:.c=.o)
 all: $(BIN)
 
 $(BIN): $(OBJ)
-	$(CC) $(CFLAGS) -o $@ $(OBJ) $(LDFLAGS) $(LDLIBS)
+	$(CC) -o $@ $(OBJ) $(LDFLAGS)
 
 $(OBJ): config.mk
 
