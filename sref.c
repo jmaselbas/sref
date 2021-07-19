@@ -344,7 +344,8 @@ update(void)
 static void
 glx_init(void)
 {
-	GLXContext (*glXCreateContextAttribsARB)(Display*, GLXFBConfig, GLXContext, Bool, const int*) = NULL;
+	typedef GLXContext (*glXCreateContextAttribsARB_f)(Display*, GLXFBConfig, GLXContext, Bool, const int*);
+	glXCreateContextAttribsARB_f glXCreateContextAttribsARB;
 	GLint maj, min;
 	int glx_attribs[] = {
 		GLX_X_RENDERABLE,   True,
@@ -379,7 +380,7 @@ glx_init(void)
 	if (!vis)
 		die("Could not create correct visual window.\n");
 
-	glXCreateContextAttribsARB = (void *) glXGetProcAddressARB((const GLubyte *) "glXCreateContextAttribsARB");
+	glXCreateContextAttribsARB = (glXCreateContextAttribsARB_f) glXGetProcAddressARB((const GLubyte *) "glXCreateContextAttribsARB");
 	if (!glXCreateContextAttribsARB)
 		die("Failed to load glXCreateContextAttribsARB\n");
 
