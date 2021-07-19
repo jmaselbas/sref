@@ -600,6 +600,9 @@ main(int argc, char **argv)
 	int i;
 
 	ARGBEGIN {
+	case 'v':
+		fprintf(stderr, "%s %s\n", argv0, VERSION);
+		exit(0);
 	default:
 		usage();
 	} ARGEND;
