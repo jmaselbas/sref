@@ -380,7 +380,7 @@ glx_init(void)
 	if (!vis)
 		die("Could not create correct visual window.\n");
 
-	glXCreateContextAttribsARB = (glXCreateContextAttribsARB_f) glXGetProcAddressARB((const GLubyte *) "glXCreateContextAttribsARB");
+	glXCreateContextAttribsARB = (glXCreateContextAttribsARB_f) glXGetProcAddress((const GLubyte *) "glXCreateContextAttribsARB");
 	if (!glXCreateContextAttribsARB)
 		die("Failed to load glXCreateContextAttribsARB\n");
 
