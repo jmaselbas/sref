@@ -67,6 +67,7 @@ enum action act;
 static int scr;
 static Display *dpy;
 static Window root, win;
+static Colormap map;
 Atom wmprotocols, wmdeletewin;
 Cursor movecursor, grabcursor, scalecursor, defaultcursor;
 GLXContext ctx;
@@ -346,6 +347,7 @@ glx_init(void)
 {
 	typedef GLXContext (*glXCreateContextAttribsARB_f)(Display*, GLXFBConfig, GLXContext, Bool, const int*);
 	glXCreateContextAttribsARB_f glXCreateContextAttribsARB;
+	XSetWindowAttributes wa = { 0 };
 	GLint maj, min;
 	int glx_attribs[] = {
 		GLX_X_RENDERABLE,   True,
@@ -368,6 +370,11 @@ glx_init(void)
 	XVisualInfo *vis;
 	int count;
 
+	dpy = XOpenDisplay(NULL);
+	if (!dpy)
+		die("cannot open display");
+	scr = DefaultScreen(dpy);
+
 	glXQueryVersion(dpy, &maj, &min);
 	if (maj <= 1 && min < 3)
 		die("GLX 1.3 or greater is required.\n");
@@ -379,6 +386,18 @@ glx_init(void)
 	vis = glXGetVisualFromFBConfig(dpy, fbc[0]);
 	if (!vis)
 		die("Could not create correct visual window.\n");
+	root = RootWindow(dpy, vis->screen);
+
+	wa.background_pixel = 0x191919;
+	wa.colormap = map = XCreateColormap(dpy, root, vis->visual, AllocNone);
+	wa.event_mask = ExposureMask | VisibilityChangeMask
+		| FocusChangeMask | KeyPressMask | StructureNotifyMask
+		| PointerMotionMask | ButtonPressMask | ButtonReleaseMask;
+	win = XCreateWindow(dpy, root, 0, 0, width, height, 0,
+			    vis->depth, CopyFromParent, vis->visual,
+			    CWBackPixel | CWColormap | CWEventMask, &wa);
+	if (!win)
+		die("fail to create window");
 
 	glXCreateContextAttribsARB = (glXCreateContextAttribsARB_f) glXGetProcAddress((const GLubyte *) "glXCreateContextAttribsARB");
 	if (!glXCreateContextAttribsARB)
@@ -399,29 +418,12 @@ glx_init(void)
 static void
 x_init(void)
 {
-	XSetWindowAttributes wa = { 0 };
-//	wa.background_pixel = scheme[SchemeNorm][ColBg].pixel;
-	wa.background_pixel = 0x191919;
-	wa.event_mask = ExposureMask | VisibilityChangeMask
-		| FocusChangeMask | KeyPressMask | StructureNotifyMask
-		| PointerMotionMask | ButtonPressMask | ButtonReleaseMask;
-
 	if (!setlocale(LC_CTYPE, "") || !XSupportsLocale())
 		fputs("warning: no locale support\n", stderr);
 	if (!XSetLocaleModifiers(""))
 		fputs("warning: no locale modifiers support\n", stderr);
 
-	dpy = XOpenDisplay(NULL);
-	if (!dpy)
-		die("cannot open display");
-
-	scr = DefaultScreen(dpy);
-	root = RootWindow(dpy, scr);
-	win = XCreateWindow(dpy, root, 0, 0, width, height, 0,
-	                    CopyFromParent, CopyFromParent, CopyFromParent,
-	                    CWBackPixel | CWEventMask, &wa);
-	if (!win)
-		die("fail to create window");
+	glx_init();
 
 	wmprotocols = XInternAtom(dpy, "WM_PROTOCOLS", False);
 	wmdeletewin = XInternAtom(dpy, "WM_DELETE_WINDOW", False);
@@ -433,9 +435,6 @@ x_init(void)
 	defaultcursor = XCreateFontCursor(dpy, XC_arrow);
 
 	XStoreName(dpy, win, "sref");
-
-	/* do opengl init before XMapWindow */
-	glx_init();
 
 	XMapWindow(dpy, win);
 	XSync(dpy, False);
@@ -617,7 +616,10 @@ main(int argc, char **argv)
 
 	run();
 
+	glXMakeCurrent(dpy, 0, 0);
+	glXDestroyContext(dpy, ctx);
 	XDestroyWindow(dpy, win);
+	XFreeColormap(dpy, map);
 	XCloseDisplay(dpy);
 
 	return 0;
