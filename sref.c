@@ -384,7 +384,9 @@ glx_init(void)
 	if (!glXCreateContextAttribsARB)
 		die("Failed to load glXCreateContextAttribsARB\n");
 
-	ctx = glXCreateContextAttribsARB(dpy, fbc[0], 0, True, ctx_attribs);
+	ctx = glXCreateContextAttribsARB(dpy, fbc[0], NULL, True, ctx_attribs);
+	if (!ctx)
+		die("Failed to create an openGL context\n");
 	glXMakeCurrent(dpy, win, ctx);
 
 	if (!gladLoadGLLoader((GLADloadproc) glXGetProcAddress))
