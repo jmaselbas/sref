@@ -286,8 +286,8 @@ render_img(struct image *i)
 	scissor(x, y, w, h, borderpx);
 	glClear(GL_COLOR_BUFFER_BIT);
 
-	glProgramUniform2f(sprg, loc_off, x, y);
-	glProgramUniform2f(sprg, loc_ext, w, h);
+	glUniform2f(loc_off, x, y);
+	glUniform2f(loc_ext, w, h);
 	glBindTexture(i->type, i->id);
 
 	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
@@ -308,7 +308,7 @@ update(void)
 	glBindVertexArray(quad_vao);
 	glActiveTexture(GL_TEXTURE0 + 0);
 	glUniform1i(loc_img, 0);
-	glProgramUniform2f(sprg, loc_res, width, height);
+	glUniform2f(loc_res, width, height);
 
 	hover_img = NULL;
 	if (act == NONE)
