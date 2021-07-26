@@ -11,6 +11,7 @@
 #include "glad.h"
 #include <X11/Xlib.h>
 #include <X11/cursorfont.h>
+#include <X11/Xatom.h>
 #include <GL/glx.h>
 #include "stb_image.h"
 
@@ -69,6 +70,21 @@ static Display *dpy;
 static Window root, win;
 static Colormap map;
 Atom wmprotocols, wmdeletewin;
+
+static unsigned char dndversion = 3;
+static Atom xdndaware, xdndenter, xdndposition, xdndstatus, xdndleave, xdnddrop, xdndfini;
+static Atom xdndacopy, xdndselection, xdnddata, xdndtypelist;
+static char *dndtargetnames[] = {
+	"text/plain",
+	"text/uri-list",
+	"UTF8_STRING",
+	"STRING",
+	"TEXT",
+};
+static const size_t dndtargetcount = LEN(dndtargetnames);
+static Atom dndtargetatoms[LEN(dndtargetnames)];
+static Atom dndtarget;
+
 Cursor movecursor, grabcursor, scalecursor, defaultcursor;
 GLXContext ctx;
 
@@ -416,6 +432,26 @@ glx_init(void)
 }
 
 static void
+xdnd_init(void)
+{
+	xdndaware = XInternAtom(dpy, "XdndAware", False);
+	xdndenter = XInternAtom(dpy, "XdndEnter", False);
+	xdndacopy = XInternAtom(dpy, "XdndActionCopy", False);
+	xdndposition = XInternAtom(dpy, "XdndPosition", False);
+	xdndselection = XInternAtom(dpy, "XdndSelection", False);
+	xdndtypelist = XInternAtom(dpy, "XdndTypeList", False);
+	xdndstatus = XInternAtom(dpy, "XdndStatus", False);
+	xdndleave = XInternAtom(dpy, "XdndLeave", False);
+	xdnddrop = XInternAtom(dpy, "XdndDrop", False);
+	xdndfini = XInternAtom(dpy, "XdndFinished", False);
+	xdnddata = XInternAtom(dpy, "XDND_DATA", False);
+
+	XInternAtoms(dpy, dndtargetnames, dndtargetcount, False, dndtargetatoms);
+
+	XChangeProperty(dpy, win, xdndaware, XA_ATOM, 32, PropModeReplace, &dndversion, 1);
+}
+
+static void
 x_init(void)
 {
 	if (!setlocale(LC_CTYPE, "") || !XSupportsLocale())
@@ -435,6 +471,8 @@ x_init(void)
 	defaultcursor = XCreateFontCursor(dpy, XC_arrow);
 
 	XStoreName(dpy, win, "sref");
+
+	xdnd_init();
 
 	XMapWindow(dpy, win);
 	XSync(dpy, False);
@@ -496,6 +534,72 @@ resize(int w, int h)
 	height = (h < 0) ? 0 : h;
 }
 
+static void *
+xgetprop(Window w, Atom prop, Atom *type, int *fmt, size_t *cnt)
+{
+	unsigned long rem;
+	void *ret = NULL;
+	int r, size = 0;
+
+	*type = None;
+	*cnt = 0;
+	do {
+		if (ret != NULL)
+			XFree(ret);
+		r = XGetWindowProperty(dpy, w, prop, 0, size, False, AnyPropertyType,
+				   type, fmt, cnt, &rem, (void *)&ret);
+		if (r != Success)
+			break;
+
+		size += rem;
+	} while (rem != 0);
+
+	return ret;
+}
+
+static Atom
+dndmatchtarget(size_t count, Atom *target)
+{
+	size_t t, i;
+
+	for (t = 0; t < dndtargetcount; t++)
+		for (i = 0; i < count; i++)
+			if (target[i] != None && target[i] == dndtargetatoms[t])
+				return target[i];
+
+	return None;
+}
+
+static void
+selnotify(XEvent *e)
+{
+	unsigned long n;
+	int fmt;
+	char *uri, *data;
+	Atom type, prop = None;
+
+	if (e->type == SelectionNotify)
+		prop = e->xselection.property;
+	if (prop == None)
+		return;
+	data = xgetprop(win, prop, &type, &fmt, &n);
+	if (!data)
+		fprintf(stderr, "selection allocation failed\n");
+
+	uri = strtok(data, "\r\n");
+	while (uri != NULL) {
+		if (strncmp(uri, "file://", strlen("file://")) == 0) {
+			uri += strlen("file://");
+			/* TODO: uridecode */
+			load(uri);
+		}
+		uri = strtok(NULL, "\r\n");
+	}
+
+	XFree(data);
+	XDeleteProperty(dpy, win, prop);
+}
+
 static void
 run(void)
 {
@@ -548,7 +652,51 @@ run(void)
 			if (ev.xclient.message_type == wmprotocols) {
 				/* assume wmdeletewin */
 				return;
+			} else if (ev.xclient.message_type == xdndenter) {
+				Window src = ev.xclient.data.l[0];
+				int version = ev.xclient.data.l[1] >> 24;
+				int typelist = ev.xclient.data.l[1] & 1;
+
+				if (version < dndversion)
+					fprintf(stderr, "unsupported dnd version %d\n", version);
+				if (typelist) {
+					Atom type = None;
+					int fmt;
+					Atom *data = NULL;
+					unsigned long n;
+					data = xgetprop(src, xdndtypelist, &type, &fmt, &n);
+					dndtarget = dndmatchtarget(n, data);
+					XFree(data);
+				} else {
+					dndtarget = dndmatchtarget(3, (Atom *) &ev.xclient.data.l[2]);
+				}
+			} else if (ev.xclient.message_type == xdndposition) {
+				Window src = ev.xclient.data.l[0];
+				Atom action = ev.xclient.data.l[4];
+				/* accept the drag-n-drop if we matched a target,
+				 * only xdndacopy action is supported */
+				int accept = dndtarget != None && action == xdndacopy;
+				XClientMessageEvent m = {
+					.type = ClientMessage,
+					.display = dpy,
+					.window = src,
+					.message_type = xdndstatus,
+					.format = 32,
+					.data.l = { win, accept, 0, 0, xdndacopy},
+				};
+
+				if (XSendEvent(dpy, src, False, NoEventMask, (XEvent *)&m) == 0)
+					fprintf(stderr, "xsend error\n");
+			} else if (ev.xclient.message_type == xdnddrop) {
+				Time droptimestamp = ev.xclient.data.l[2];
+				if (dndtarget != None)
+					XConvertSelection(dpy, xdndselection, dndtarget, xdnddata, win, droptimestamp);
+			} else if (ev.xclient.message_type == xdndleave) {
+				dndtarget = None;
 			}
+			break;
+		case SelectionNotify:
+			selnotify(&ev);
 			break;
 		default:
 			break;
