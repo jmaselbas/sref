@@ -7,6 +7,7 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <locale.h>
+#include <ctype.h>
 
 #include "glad.h"
 #include <X11/Xlib.h>
@@ -108,6 +109,32 @@ die(const char *fmt, ...)
 	va_end(ap);
 
 	exit(1);
+}
+
+static unsigned int
+xtoi(char hex)
+{
+	return (isdigit(hex) ? hex - '0' : toupper(hex) - 'A' + 10);
+}
+
+static int
+urldecode(char *str, char *url, size_t len)
+{
+	while (len > 0 && *url != '\0') {
+		if (url[0] != '%') {
+			*str++ = *url++;
+		} else if (len > 2 && isxdigit(url[1]) && isxdigit(url[2])) {
+			*str++ = 16 * xtoi(url[1]) + xtoi(url[2]);
+			url += 3;
+			len -= 3;
+		} else {
+			return 1; /* malformed url */
+		}
+	}
+	if (len > 0)
+		*str++ = '\0';
+
+	return 0;
 }
 
 static void load_at(const char *name, int x, int y);
@@ -589,7 +616,7 @@ selnotify(XEvent *e)
 	while (uri != NULL) {
 		if (strncmp(uri, "file://", strlen("file://")) == 0) {
 			uri += strlen("file://");
-			/* TODO: uridecode */
+			urldecode(uri, uri, strlen(uri) + 1);
 			load(uri);
 		}
 		uri = strtok(NULL, "\r\n");
