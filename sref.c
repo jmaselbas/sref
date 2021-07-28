@@ -81,7 +81,6 @@ static char *dndtargetnames[] = {
 	"STRING",
 	"TEXT",
 };
-static const size_t dndtargetcount = LEN(dndtargetnames);
 static Atom dndtargetatoms[LEN(dndtargetnames)];
 static Atom dndtarget;
 
@@ -446,7 +445,7 @@ xdnd_init(void)
 	xdndfini = XInternAtom(dpy, "XdndFinished", False);
 	xdnddata = XInternAtom(dpy, "XDND_DATA", False);
 
-	XInternAtoms(dpy, dndtargetnames, dndtargetcount, False, dndtargetatoms);
+	XInternAtoms(dpy, dndtargetnames, LEN(dndtargetnames), False, dndtargetatoms);
 
 	XChangeProperty(dpy, win, xdndaware, XA_ATOM, 32, PropModeReplace, &dndversion, 1);
 }
@@ -562,7 +561,7 @@ dndmatchtarget(size_t count, Atom *target)
 {
 	size_t t, i;
 
-	for (t = 0; t < dndtargetcount; t++)
+	for (t = 0; t < LEN(dndtargetatoms); t++)
 		for (i = 0; i < count; i++)
 			if (target[i] != None && target[i] == dndtargetatoms[t])
 				return target[i];
