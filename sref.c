@@ -450,7 +450,7 @@ glx_init(void)
 		die("Failed to create an openGL context\n");
 	glXMakeCurrent(dpy, win, ctx);
 
-	if (!gladLoadGLLoader((GLADloadproc) glXGetProcAddress))
+	if (!gladLoadGL((GLADloadfunc) glXGetProcAddress))
 		die("GL init failed\n");
 
 	XFree(fbc);
