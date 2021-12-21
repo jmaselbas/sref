@@ -15,6 +15,7 @@
 #include <X11/Xatom.h>
 #include <GL/glx.h>
 #include "stb_image.h"
+#include "qoi.h"
 
 #include "arg.h"
 
@@ -552,6 +553,7 @@ load_at(const char *name, int x, int y)
 	unsigned char *file;
 	unsigned char *data;
 	size_t len;
+	int type_qoif = 0;
 
 	if (name == NULL)
 		return;
@@ -569,8 +571,17 @@ load_at(const char *name, int x, int y)
 		return;
 	}
 
-	stbi_set_flip_vertically_on_load(1);
-	data = stbi_load_from_memory(file, len, &w, &h, &n, 0);
+	if (len > 22 && strncmp((char *)file, "qoif", strlen("qoif")) == 0) {
+		qoi_desc desc;
+		type_qoif = 1;
+		data = qoi_decode(file, len, &desc, 0);
+		w = desc.width;
+		h = desc.height;
+		n = desc.channels;
+	} else {
+		stbi_set_flip_vertically_on_load(1);
+		data = stbi_load_from_memory(file, len, &w, &h, &n, 0);
+	}
 	free(file);
 	if (data == NULL || n == 0) {
 		fprintf(stderr, "%s: Fail to load image\n", name);
@@ -593,7 +604,11 @@ load_at(const char *name, int x, int y)
 	images[image_count].posy = y - h / 2;
 	image_count++;
 
-	stbi_image_free(data);
+	if (type_qoif) {
+		free(data);
+	} else {
+		stbi_image_free(data);
+	}
 }
 
 static void

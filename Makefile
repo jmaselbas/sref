@@ -3,7 +3,7 @@
 
 include config.mk
 
-SRC = sref.c stbi.c glad.c
+SRC = sref.c stbi.c qoi.c glad.c
 BIN = sref
 OBJ = $(SRC:.c=.o)
 DISTFILES = $(SRC) arg.h config.mk stb_image.h glad.h khrplatform.h LICENSE README Makefile
