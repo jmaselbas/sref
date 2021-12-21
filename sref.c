@@ -511,12 +511,47 @@ init(void)
 	shader_init();
 }
 
+static void *
+file_read(const char *name, size_t *s)
+{
+	char *data = NULL, *newp;
+	size_t len, size;
+	int n;
+	int fd;
+
+	fd = open(name, O_RDONLY);
+	if (fd < 0)
+		return NULL;
+
+	len = size = 0;
+	do {
+		newp = realloc(data, size += 4096);
+		if (!newp)
+			goto free;
+		data = newp;
+		n = read(fd, &data[len], 4096);
+		if (n < 0)
+			goto free;
+		len += n;
+	} while (n == 4096);
+	close(fd);
+
+	*s = len;
+	return data;
+free:
+	close(fd);
+	free(data);
+	return NULL;
+}
+
 static void
 load_at(const char *name, int x, int y)
 {
 	GLenum format;
 	int w, h, n;
+	unsigned char *file;
 	unsigned char *data;
+	size_t len;
 
 	if (name == NULL)
 		return;
@@ -526,9 +561,17 @@ load_at(const char *name, int x, int y)
 		return;
 	}
 
-	stbi_set_flip_vertically_on_load(1);
-	data = stbi_load(name, &w, &h, &n, 0);
+	file = file_read(name, &len);
+	if (file == NULL || len == 0) {
+		fprintf(stderr, "%s: Fail to load image\n", name);
+		if (file)
+			free(file);
+		return;
+	}
 
+	stbi_set_flip_vertically_on_load(1);
+	data = stbi_load_from_memory(file, len, &w, &h, &n, 0);
+	free(file);
 	if (data == NULL || n == 0) {
 		fprintf(stderr, "%s: Fail to load image\n", name);
 		return;
