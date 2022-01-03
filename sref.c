@@ -206,7 +206,7 @@ shader_init(void)
 		"{\n"
 		"	vec2 pos = -1.0 + (in_pos * ext + off) * 2.0 / res;\n"
 		"	gl_Position = vec4(pos.x, pos.y, 0.0, 1.0);\n"
-		"	tex = in_pos;\n"
+		"	tex = vec2(in_pos.x, 1.0 - in_pos.y);\n"
 		"}\n";
 	const char *frag =
 		"#version 330 core\n"
@@ -579,7 +579,6 @@ load_at(const char *name, int x, int y)
 		h = desc.height;
 		n = desc.channels;
 	} else {
-		stbi_set_flip_vertically_on_load(1);
 		data = stbi_load_from_memory(file, len, &w, &h, &n, 0);
 	}
 	free(file);
