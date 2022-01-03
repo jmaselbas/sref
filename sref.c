@@ -415,12 +415,12 @@ glx_init(void)
 
 	dpy = XOpenDisplay(NULL);
 	if (!dpy)
-		die("cannot open display");
+		die("cannot open display\n");
 	scr = DefaultScreen(dpy);
 
 	glXQueryVersion(dpy, &maj, &min);
 	if (maj <= 1 && min < 3)
-		die("GLX 1.3 or greater is required.\n");
+		die("GLX 1.3 or greater is required\n");
 
 	fbc = glXChooseFBConfig(dpy, scr, glx_attribs, &count);
 	if (fbc == NULL || count <= 0)
@@ -428,7 +428,7 @@ glx_init(void)
 
 	vis = glXGetVisualFromFBConfig(dpy, fbc[0]);
 	if (!vis)
-		die("Could not create correct visual window.\n");
+		die("Could not create correct visual window\n");
 	root = RootWindow(dpy, vis->screen);
 
 	wa.background_pixel = 0x191919;
@@ -440,7 +440,7 @@ glx_init(void)
 			    vis->depth, CopyFromParent, vis->visual,
 			    CWBackPixel | CWColormap | CWEventMask, &wa);
 	if (!win)
-		die("fail to create window");
+		die("fail to create window\n");
 
 	glXCreateContextAttribsARB = (glXCreateContextAttribsARB_f) glXGetProcAddress((const GLubyte *) "glXCreateContextAttribsARB");
 	if (!glXCreateContextAttribsARB)
