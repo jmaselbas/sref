@@ -880,7 +880,7 @@ run(void)
 static void
 usage(void)
 {
-	printf("usage: %s [image_files ...]\n", argv0);
+	printf("usage: %s [-hv] [--] [files ...]\n", argv0);
 	exit(1);
 }
 
@@ -893,6 +893,7 @@ main(int argc, char **argv)
 	case 'v':
 		fprintf(stderr, "%s %s\n", argv0, VERSION);
 		exit(0);
+	case 'h':
 	default:
 		usage();
 	} ARGEND;
