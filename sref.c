@@ -23,12 +23,7 @@ struct color {
 	float r, g, b;
 };
 
-static int borderpx = 1;
-static struct color bg = {0.1, 0.1, 0.1};
-static struct color normal = {0, 0, 0};
-static struct color hover  = {0, 0x6b / 255.0, 0xcd / 255.0}; /* #006bcd */
-static struct color focus  = {0, 0x6b / 255.0, 0xcd / 255.0}; /* #006bcd */
-
+#include "config.h"
 
 #define LEN(a) (sizeof(a)/sizeof(*a))
 struct image {
@@ -40,12 +35,10 @@ struct image {
 	float scale;
 };
 size_t image_count;
-struct image images[1024];
+struct image images[MAX_IMAGE_COUNT];
 
 struct image *hover_img;
 struct image *focus_img;
-unsigned int width = 1080;
-unsigned int height = 800;
 char *argv0;
 
 int orgx;

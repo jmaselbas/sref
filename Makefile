@@ -6,14 +6,19 @@ include config.mk
 SRC = sref.c stbi.c qoi.c glad.c
 BIN = sref
 OBJ = $(SRC:.c=.o)
-DISTFILES = $(SRC) arg.h config.mk stb_image.h glad.h khrplatform.h LICENSE README Makefile
+HDR = arg.h stb_image.h qoi.h glad.h khrplatform.h
+DISTFILES = $(SRC) $(HDR) config.def.h config.mk LICENSE README Makefile
 
 all: $(BIN)
 
 $(BIN): $(OBJ)
 	$(CC) -o $@ $(OBJ) $(LDFLAGS)
 
+config.h:
+	cp config.def.h config.h
+
 $(OBJ): config.mk
+sref.o: config.h
 
 install: all
 	mkdir -p $(DESTDIR)$(PREFIX)/bin
