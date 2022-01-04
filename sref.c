@@ -276,6 +276,24 @@ shader_init(void)
 	glEnableVertexAttribArray(loc_in_pos);
 }
 
+
+static XRectangle
+img_to_rect(struct image *i)
+{
+	float z = zoom;
+	int x = z * (i->posx + orgx) + width / 2;
+	int y = z * (i->posy + orgy) + height / 2;
+	int w = z * (i->width * i->scale);
+	int h = z * (i->height * i->scale);
+	XRectangle r = {
+		.x = x,
+		.y = y,
+		.width = w,
+		.height = h,
+	};
+	return r;
+}
+
 static int
 mouse_in(int x, int y, int w, int h)
 {
@@ -285,15 +303,15 @@ mouse_in(int x, int y, int w, int h)
 }
 
 static int
+mouse_in_rect(XRectangle r)
+{
+	return mouse_in(r.x, r.y, r.width, r.height);
+}
+
+static int
 mouse_in_img(struct image *i)
 {
-	float z = zoom;
-	int x = z * (i->posx + orgx) + width / 2;
-	int y = z * (i->posy + orgy) + height / 2;
-	int w = z * (i->width * i->scale);
-	int h = z * (i->height * i->scale);
-
-	return mouse_in(x, y, w, h);
+	return mouse_in_rect(img_to_rect(i));
 }
 
 static void
@@ -313,11 +331,11 @@ scissor(int x, int y, int w, int h, int px)
 static void
 render_img(struct image *i)
 {
-	float z = zoom;
-	int x = z * (i->posx + orgx) + width / 2;
-	int y = z * (i->posy + orgy) + height / 2;
-	int w = z * (i->width * i->scale);
-	int h = z * (i->height * i->scale);
+	XRectangle r = img_to_rect(i);
+	int x = r.x;
+	int y = height - r.y - r.height;
+	int w = r.width;
+	int h = r.height;
 
 	if (i == focus_img)
 		glClearColor(focus.r, focus.g, focus.b, 1.0);
@@ -706,10 +724,10 @@ run(void)
 			break;
 		case MotionNotify:
 			xrel -= mousex - ev.xmotion.x;
-			yrel -= mousey - (height - ev.xmotion.y);
+			yrel -= mousey - ev.xmotion.y;
 
 			mousex = ev.xmotion.x;
-			mousey = height - ev.xmotion.y;
+			mousey = ev.xmotion.y;
 			break;
 		case ButtonPress:
 		case ButtonRelease:
