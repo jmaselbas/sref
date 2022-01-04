@@ -2,6 +2,7 @@
 
 static int borderpx = 1;
 static struct color bg = {0.1, 0.1, 0.1};
+static float bg_alpha = 1.0; /* set to != 1.0 to enable transparency */
 static struct color normal = {0, 0, 0};
 static struct color hover  = {0, 0x6b / 255.0, 0xcd / 255.0};
 static struct color focus  = {0, 0x6b / 255.0, 0xcd / 255.0};

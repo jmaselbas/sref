@@ -8,8 +8,8 @@ PREFIX = /usr/local
 MANPREFIX = $(PREFIX)/share/man
 
 # Depencies includes and libs
-INCS = `pkg-config --cflags x11 gl`
-LIBS = -ldl -lm `pkg-config --libs x11 gl`
+INCS = `pkg-config --cflags x11 gl xrender`
+LIBS = -ldl -lm `pkg-config --libs x11 gl xrender`
 
 # Flags
 CPPFLAGS += -DVERSION=\"$(VERSION)\"

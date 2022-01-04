@@ -13,6 +13,7 @@
 #include <X11/Xlib.h>
 #include <X11/cursorfont.h>
 #include <X11/Xatom.h>
+#include <X11/extensions/Xrender.h>
 #include <GL/glx.h>
 #include "stb_image.h"
 #include "qoi.h"
@@ -355,7 +356,7 @@ update(void)
 	glEnable(GL_SCISSOR_TEST);
 	glViewport(0, 0, width, height);
 	glScissor(0, 0, width, height);
-	glClearColor(bg.r, bg.g, bg.b, 1.0);
+	glClearColor(bg.r, bg.g, bg.b, bg_alpha);
 	glClear(GL_COLOR_BUFFER_BIT);
 
 	glUseProgram(sprg);
@@ -396,6 +397,17 @@ update(void)
 	glXSwapBuffers(dpy, win);
 }
 
+static int
+select_visual(XVisualInfo *v)
+{
+	XRenderPictFormat *fmt;
+	fmt = (void *)XRenderFindVisualFormat(dpy, v->visual);
+	if (bg_alpha != 1.0 && fmt->direct.alphaMask == 0)
+		return 0;
+
+	return 1;
+}
+
 static void
 glx_init(void)
 {
@@ -422,7 +434,7 @@ glx_init(void)
 	};
 	GLXFBConfig *fbc;
 	XVisualInfo *vis;
-	int count;
+	int i, count;
 
 	dpy = XOpenDisplay(NULL);
 	if (!dpy)
@@ -437,19 +449,27 @@ glx_init(void)
 	if (fbc == NULL || count <= 0)
 		die("No framebuffer\n");
 
-	vis = glXGetVisualFromFBConfig(dpy, fbc[0]);
+	for (i = 0; i < count; i++) {
+		vis = glXGetVisualFromFBConfig(dpy, fbc[i]);
+		if (!vis)
+			continue;
+		if (select_visual(vis))
+			break;
+		vis = NULL;
+	}
 	if (!vis)
 		die("Could not create correct visual window\n");
 	root = RootWindow(dpy, vis->screen);
 
-	wa.background_pixel = 0x191919;
+	wa.background_pixel = 0;
+	wa.border_pixel = 0;
 	wa.colormap = map = XCreateColormap(dpy, root, vis->visual, AllocNone);
 	wa.event_mask = ExposureMask | VisibilityChangeMask
 		| FocusChangeMask | KeyPressMask | StructureNotifyMask
 		| PointerMotionMask | ButtonPressMask | ButtonReleaseMask;
 	win = XCreateWindow(dpy, root, 0, 0, width, height, 0,
-			    vis->depth, CopyFromParent, vis->visual,
-			    CWBackPixel | CWColormap | CWEventMask, &wa);
+			    vis->depth, InputOutput, vis->visual,
+			    CWBackPixel | CWBorderPixel | CWColormap | CWEventMask, &wa);
 	if (!win)
 		die("fail to create window\n");
 
