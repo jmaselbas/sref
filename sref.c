@@ -14,6 +14,7 @@
 #include <X11/cursorfont.h>
 #include <X11/Xatom.h>
 #include <X11/extensions/Xrender.h>
+#include <X11/extensions/shape.h>
 #include <GL/glx.h>
 #include "stb_image.h"
 #include "qoi.h"
@@ -65,7 +66,9 @@ static int scr;
 static Display *dpy;
 static Window root, win;
 static Colormap map;
-Atom wmprotocols, wmdeletewin;
+static Atom wmprotocols, wmdeletewin;
+
+static XRectangle rect[LEN(images)];
 
 static unsigned char dndversion = 3;
 static Atom xdndaware, xdndenter, xdndposition, xdndstatus, xdndleave, xdnddrop, xdndfini;
@@ -270,9 +273,21 @@ shader_init(void)
 	glEnableVertexAttribArray(loc_in_pos);
 }
 
+static XRectangle
+win_rect(void)
+{
+	XRectangle r = {
+		.x = 0,
+		.y = 0,
+		.width = width,
+		.height = height
+	};
+
+	return r;
+}
 
 static XRectangle
-img_to_rect(struct image *i)
+img_to_rect(struct image *i, int px)
 {
 	float z = zoom;
 	int x = z * (i->posx + orgx) + width / 2;
@@ -280,10 +295,10 @@ img_to_rect(struct image *i)
 	int w = z * (i->width * i->scale);
 	int h = z * (i->height * i->scale);
 	XRectangle r = {
-		.x = x,
-		.y = y,
-		.width = w,
-		.height = h,
+		.x = x - px,
+		.y = y - px,
+		.width = w + 2 * px,
+		.height = h + 2 * px,
 	};
 	return r;
 }
@@ -305,7 +320,7 @@ mouse_in_rect(XRectangle r)
 static int
 mouse_in_img(struct image *i)
 {
-	return mouse_in_rect(img_to_rect(i));
+	return mouse_in_rect(img_to_rect(i, 0));
 }
 
 static void
@@ -325,7 +340,7 @@ scissor(int x, int y, int w, int h, int px)
 static void
 render_img(struct image *i)
 {
-	XRectangle r = img_to_rect(i);
+	XRectangle r = img_to_rect(i, 0);
 	int x = r.x;
 	int y = height - r.y - r.height;
 	int w = r.width;
@@ -393,6 +408,17 @@ update(void)
 
 	for (i = 0; i < image_count; i++)
 		render_img(&images[i]);
+
+	if (!customshape || focus_img || image_count == 0) {
+		XRectangle r = win_rect();
+		XShapeCombineRectangles(dpy, win, ShapeBounding,
+				0, 0, &r, 1, ShapeSet, 0);
+	} else {
+		for (i = 0; i < image_count; i++)
+			rect[i] = img_to_rect(&images[i], borderpx);
+		XShapeCombineRectangles(dpy, win, ShapeBounding,
+				0, 0, rect, image_count, ShapeSet, 0);
+	}
 
 	glXSwapBuffers(dpy, win);
 }
