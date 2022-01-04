@@ -7,7 +7,7 @@ SRC = sref.c stbi.c qoi.c glad.c
 BIN = sref
 OBJ = $(SRC:.c=.o)
 HDR = arg.h stb_image.h qoi.h glad.h khrplatform.h
-DISTFILES = $(SRC) $(HDR) config.def.h config.mk LICENSE README Makefile
+DISTFILES = $(SRC) $(HDR) config.def.h config.mk sref.1 LICENSE README Makefile
 
 all: $(BIN)
 
@@ -25,7 +25,7 @@ install: all
 	cp -f $(BIN) $(DESTDIR)$(PREFIX)/bin
 	chmod 755 $(DESTDIR)$(PREFIX)/bin/$(BIN)
 	mkdir -p $(DESTDIR)$(MANPREFIX)/man1
-	cp -f $(BIN).1 $(DESTDIR)$(MANPREFIX)/man1
+	sed "s/VERSION/$(VERSION)/g" < $(BIN).1 > $(DESTDIR)$(MANPREFIX)/man1/$(BIN).1
 
 uninstall:
 	rm -vf $(DESTDIR)$(PREFIX)/bin/$(BIN)
