@@ -434,11 +434,22 @@ select_visual(XVisualInfo *v)
 	return 1;
 }
 
+static int
+glx_has_ext(const char *name)
+{
+	const char *exts = glXQueryExtensionsString(dpy, scr);
+	return strstr(exts, name) != NULL;
+}
+
 static void
 glx_init(void)
 {
 	typedef GLXContext (*glXCreateContextAttribsARB_f)(Display*, GLXFBConfig, GLXContext, Bool, const int*);
+	typedef void (*glXSwapIntervalEXT_f)(Display*, GLXDrawable, int);
+	typedef void (*glXSwapIntervalSGI_f)(int);
 	glXCreateContextAttribsARB_f glXCreateContextAttribsARB;
+	glXSwapIntervalEXT_f glXSwapIntervalEXT;
+	glXSwapIntervalSGI_f glXSwapIntervalSGI;
 	XSetWindowAttributes wa = { 0 };
 	GLint maj, min;
 	int glx_attribs[] = {
@@ -513,6 +524,19 @@ glx_init(void)
 
 	XFree(fbc);
 	XFree(vis);
+
+	if (glx_has_ext("GLX_EXT_swap_control")) {
+		glXSwapIntervalEXT = (glXSwapIntervalEXT_f) glXGetProcAddress((const GLubyte *) "glXSwapIntervalEXT");
+		if (glXSwapIntervalEXT)
+			glXSwapIntervalEXT(dpy, glXGetCurrentDrawable(), 2);
+	} else if (glx_has_ext("GLX_SGI_swap_control")) {
+		glXSwapIntervalSGI = (glXSwapIntervalSGI_f) glXGetProcAddress((const GLubyte *) "glXSwapIntervalSGI");
+		if (glXSwapIntervalSGI)
+			glXSwapIntervalSGI(2);
+	} else if (glx_has_ext("GLX_MESA_swap_control")) {
+		fprintf(stderr, "FIXME: handle extension %s for vsync\n",
+			"GLX_MESA_swap_control");
+	}
 }
 
 static void
