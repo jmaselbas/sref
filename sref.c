@@ -1,4 +1,4 @@
-/* See LICENSE file for copyright and license details. */
+/* SPDX-License-Identifier: BSD-2-Clause */
 #include <unistd.h>
 #include <stdlib.h>
 #include <stdio.h>

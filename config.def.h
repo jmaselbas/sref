@@ -1,4 +1,4 @@
-/* See LICENSE file for copyright and license details. */
+/* SPDX-License-Identifier: BSD-2-Clause */
 
 static int borderpx = 1;
 static struct color bg = {0.1, 0.1, 0.1};
