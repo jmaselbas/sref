@@ -887,6 +887,8 @@ run(void)
 
 			if (zoom < 0.01)
 				zoom = 0.01;
+			if (zoom > 100.0)
+				zoom = 100.0;
 
 			xrel /= zoom;
 			yrel /= zoom;
