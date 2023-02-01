@@ -940,13 +940,14 @@ run(void)
 static void
 usage(void)
 {
-	printf("usage: %s [-hv] [--] [files ...]\n", argv0);
+	printf("usage: %s [-hv] [--] [[+<X>x<Y>] files ...]\n", argv0);
 	exit(1);
 }
 
 int
 main(int argc, char **argv)
 {
+	int x, y;
 	int i;
 
 	ARGBEGIN {
@@ -960,8 +961,15 @@ main(int argc, char **argv)
 
 	init();
 
-	for (i = 0; i < argc; i++)
-		load(argv[i]);
+	x = 0, y = 0;
+	for (i = 0; i < argc; i++) {
+		if (argv[i][0] == '+') {
+			sscanf(argv[i], "+%dx%d", &x, &y);
+			continue;
+		}
+		load_at(argv[i], x, y);
+		x = 0, y = 0;
+	}
 
 	run();
 
