@@ -735,7 +735,14 @@ dndmatchtarget(size_t count, Atom *target)
 }
 
 static void
-selnotify(XEvent *e)
+xev_visnotify(XEvent *ev)
+{
+	if (ev->xvisibility.state != VisibilityUnobscured)
+		XRaiseWindow(dpy, win);
+}
+
+static void
+xev_selnotify(XEvent *e)
 {
 	unsigned long n;
 	int fmt;
@@ -765,6 +772,96 @@ selnotify(XEvent *e)
 }
 
 static void
+xev_keypress(XEvent *ev)
+{
+	switch (XLookupKeysym(&ev->xkey, 1)) {
+	case XK_0:
+	case XK_KP_0:
+	case XK_Home:
+		zoom = 1;
+		break;
+	}
+}
+
+static void
+xev_cmessage(XEvent *ev)
+{
+	if (ev->xclient.message_type == xdndenter) {
+		Window src = ev->xclient.data.l[0];
+		int version = ev->xclient.data.l[1] >> 24;
+		int typelist = ev->xclient.data.l[1] & 1;
+
+		if (version < dndversion)
+			fprintf(stderr, "unsupported dnd version %d\n", version);
+		if (typelist) {
+			Atom type = None;
+			int fmt;
+			Atom *data = NULL;
+			unsigned long n;
+			data = xgetprop(src, xdndtypelist, &type, &fmt, &n);
+			dndtarget = dndmatchtarget(n, data);
+			XFree(data);
+		} else {
+			dndtarget = dndmatchtarget(3, (Atom *) &ev->xclient.data.l[2]);
+		}
+	} else if (ev->xclient.message_type == xdndposition) {
+		Window src = ev->xclient.data.l[0];
+		Atom action = ev->xclient.data.l[4];
+		/* accept the drag-n-drop if we matched a target,
+		 * only xdndacopy action is supported */
+		int accept = dndtarget != None && action == xdndacopy;
+		XClientMessageEvent m = {
+			.type = ClientMessage,
+			.display = dpy,
+			.window = src,
+			.message_type = xdndstatus,
+			.format = 32,
+			.data.l = { win, accept, 0, 0, xdndacopy},
+		};
+
+		if (XSendEvent(dpy, src, False, NoEventMask, (XEvent *)&m) == 0)
+			fprintf(stderr, "xsend error\n");
+	} else if (ev->xclient.message_type == xdnddrop) {
+		Time droptimestamp = ev->xclient.data.l[2];
+		if (dndtarget != None)
+			XConvertSelection(dpy, xdndselection, dndtarget, xdnddata, win, droptimestamp);
+	} else if (ev->xclient.message_type == xdndleave) {
+		dndtarget = None;
+	}
+}
+
+static void
+xev_resize(XEvent *ev)
+{
+	resize(ev->xconfigure.width, ev->xconfigure.height);
+}
+
+static void
+xev_button(XEvent *ev)
+{
+	if (ev->xbutton.button == 4) /* mouse wheel up */
+		zoom += zoom * 0.1 * (ev->type == ButtonPress);
+	if (ev->xbutton.button == 5) /* mouse wheel down */
+		zoom -= zoom * 0.1 * (ev->type == ButtonPress);
+	if (ev->xbutton.button == 1)
+		lclick = ev->type == ButtonPress;
+	if (ev->xbutton.button == 2)
+		mclick = ev->type == ButtonPress;
+	if (ev->xbutton.button == 3)
+		rclick = ev->type == ButtonPress;
+}
+
+static void
+xev_motion(XEvent *ev)
+{
+	xrel -= mousex - ev->xmotion.x;
+	yrel -= mousey - ev->xmotion.y;
+
+	mousex = ev->xmotion.x;
+	mousey = ev->xmotion.y;
+}
+
+static void
 run(void)
 {
 	XEvent ev;
@@ -773,94 +870,31 @@ run(void)
 	xrel = yrel = 0;
 
 	while (!XNextEvent(dpy, &ev)) {
-
 		if (!XFilterEvent(&ev, None))
 		switch (ev.type) {
 		case KeyPress:
-			switch (XLookupKeysym(&ev.xkey, 1)) {
-			case XK_0:
-			case XK_KP_0:
-			case XK_Home:
-				zoom = 1;
-				break;
-			}
+			xev_keypress(&ev);
 			break;
 		case MotionNotify:
-			xrel -= mousex - ev.xmotion.x;
-			yrel -= mousey - ev.xmotion.y;
-
-			mousex = ev.xmotion.x;
-			mousey = ev.xmotion.y;
+			xev_motion(&ev);
 			break;
 		case ButtonPress:
 		case ButtonRelease:
-			if (ev.xbutton.button == 4) /* mouse wheel up */
-				zoom += zoom * 0.1 * (ev.type == ButtonPress);
-			if (ev.xbutton.button == 5) /* mouse wheel down */
-				zoom -= zoom * 0.1 * (ev.type == ButtonPress);
-			if (ev.xbutton.button == 1)
-				lclick = ev.type == ButtonPress;
-			if (ev.xbutton.button == 2)
-				mclick = ev.type == ButtonPress;
-			if (ev.xbutton.button == 3)
-				rclick = ev.type == ButtonPress;
+			xev_button(&ev);
 			break;
 		case ConfigureNotify:
-			resize(ev.xconfigure.width, ev.xconfigure.height);
+			xev_resize(&ev);
 			break;
 		case VisibilityNotify:
-			if (ev.xvisibility.state != VisibilityUnobscured)
-				XRaiseWindow(dpy, win);
+			xev_visnotify(&ev);
 			break;
 		case ClientMessage:
-			if (ev.xclient.message_type == wmprotocols) {
-				/* assume wmdeletewin */
-				return;
-			} else if (ev.xclient.message_type == xdndenter) {
-				Window src = ev.xclient.data.l[0];
-				int version = ev.xclient.data.l[1] >> 24;
-				int typelist = ev.xclient.data.l[1] & 1;
-
-				if (version < dndversion)
-					fprintf(stderr, "unsupported dnd version %d\n", version);
-				if (typelist) {
-					Atom type = None;
-					int fmt;
-					Atom *data = NULL;
-					unsigned long n;
-					data = xgetprop(src, xdndtypelist, &type, &fmt, &n);
-					dndtarget = dndmatchtarget(n, data);
-					XFree(data);
-				} else {
-					dndtarget = dndmatchtarget(3, (Atom *) &ev.xclient.data.l[2]);
-				}
-			} else if (ev.xclient.message_type == xdndposition) {
-				Window src = ev.xclient.data.l[0];
-				Atom action = ev.xclient.data.l[4];
-				/* accept the drag-n-drop if we matched a target,
-				 * only xdndacopy action is supported */
-				int accept = dndtarget != None && action == xdndacopy;
-				XClientMessageEvent m = {
-					.type = ClientMessage,
-					.display = dpy,
-					.window = src,
-					.message_type = xdndstatus,
-					.format = 32,
-					.data.l = { win, accept, 0, 0, xdndacopy},
-				};
-
-				if (XSendEvent(dpy, src, False, NoEventMask, (XEvent *)&m) == 0)
-					fprintf(stderr, "xsend error\n");
-			} else if (ev.xclient.message_type == xdnddrop) {
-				Time droptimestamp = ev.xclient.data.l[2];
-				if (dndtarget != None)
-					XConvertSelection(dpy, xdndselection, dndtarget, xdnddata, win, droptimestamp);
-			} else if (ev.xclient.message_type == xdndleave) {
-				dndtarget = None;
-			}
+			if (ev.xclient.message_type == wmprotocols)
+				return; /* assume wmdeletewin */
+			xev_cmessage(&ev);
 			break;
 		case SelectionNotify:
-			selnotify(&ev);
+			xev_selnotify(&ev);
 			break;
 		default:
 			break;
