@@ -35,6 +35,7 @@ struct image {
 	int posx;
 	int posy;
 	float scale;
+	const char *path;
 };
 size_t image_count;
 struct image images[MAX_IMAGE_COUNT];
@@ -699,6 +700,7 @@ load_at(const char *name, int x, int y)
 		format = GL_RED;
 
 	images[image_count] = create_image(w, h, format, GL_UNSIGNED_BYTE, data);
+	images[image_count].path = strdup(name);
 	images[image_count].posx = x - w / 2;
 	images[image_count].posy = y - h / 2;
 	image_count++;
