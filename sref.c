@@ -109,6 +109,16 @@ die(const char *fmt, ...)
 	exit(1);
 }
 
+static void
+err(const char *fmt, ...)
+{
+	va_list ap;
+
+	va_start(ap, fmt);
+	vfprintf(stderr, fmt, ap);
+	va_end(ap);
+}
+
 static unsigned int
 xtoi(char hex)
 {
@@ -534,7 +544,7 @@ glx_init(void)
 		if (glXSwapIntervalSGI)
 			glXSwapIntervalSGI(2);
 	} else if (glx_has_ext("GLX_MESA_swap_control")) {
-		fprintf(stderr, "FIXME: handle extension %s for vsync\n",
+		err("FIXME: handle extension %s for vsync\n",
 			"GLX_MESA_swap_control");
 	}
 }
@@ -640,13 +650,13 @@ load_at(const char *name, int x, int y)
 		return;
 
 	if (image_count >= LEN(images)) {
-		fprintf(stderr, "%s: Cannot open image, too many open\n", name);
+		err("%s: Cannot open image, too many open\n", name);
 		return;
 	}
 
 	file = file_read(name, &len);
 	if (file == NULL || len == 0) {
-		fprintf(stderr, "%s: Fail to load image\n", name);
+		err("%s: Fail to load image\n", name);
 		if (file)
 			free(file);
 		return;
@@ -664,7 +674,7 @@ load_at(const char *name, int x, int y)
 	}
 	free(file);
 	if (data == NULL || n == 0) {
-		fprintf(stderr, "%s: Fail to load image\n", name);
+		err("%s: Fail to load image\n", name);
 		return;
 	}
 
@@ -755,7 +765,7 @@ xev_selnotify(XEvent *e)
 		return;
 	data = xgetprop(win, prop, &type, &fmt, &n);
 	if (!data)
-		fprintf(stderr, "selection allocation failed\n");
+		err("selection allocation failed\n");
 
 	uri = strtok(data, "\r\n");
 	while (uri != NULL) {
@@ -792,7 +802,7 @@ xev_cmessage(XEvent *ev)
 		int typelist = ev->xclient.data.l[1] & 1;
 
 		if (version < dndversion)
-			fprintf(stderr, "unsupported dnd version %d\n", version);
+			err("unsupported dnd version %d\n", version);
 		if (typelist) {
 			Atom type = None;
 			int fmt;
@@ -820,7 +830,7 @@ xev_cmessage(XEvent *ev)
 		};
 
 		if (XSendEvent(dpy, src, False, NoEventMask, (XEvent *)&m) == 0)
-			fprintf(stderr, "xsend error\n");
+			err("xsend error\n");
 	} else if (ev->xclient.message_type == xdnddrop) {
 		Time droptimestamp = ev->xclient.data.l[2];
 		if (dndtarget != None)
@@ -952,7 +962,7 @@ main(int argc, char **argv)
 
 	ARGBEGIN {
 	case 'v':
-		fprintf(stderr, "%s %s\n", argv0, VERSION);
+		err("%s %s\n", argv0, VERSION);
 		exit(0);
 	case 'h':
 	default:
