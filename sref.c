@@ -795,11 +795,23 @@ xev_selnotify(XEvent *e)
 static void
 xev_keypress(XEvent *ev)
 {
+	size_t i;
+
 	switch (XLookupKeysym(&ev->xkey, 1)) {
 	case XK_0:
 	case XK_KP_0:
 	case XK_Home:
 		zoom = 1;
+		break;
+	case XK_space:
+		printf("%s", argv0);
+		for (i = 0; i < image_count; i++) {
+			int x = images[i].posx + images[i].width / 2;
+			int y = images[i].posy + images[i].height / 2;
+			printf(" +%dx%d %s", x, y, images[i].path);
+		}
+		puts("");
+
 		break;
 	}
 }
