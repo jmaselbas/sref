@@ -119,6 +119,15 @@ err(const char *fmt, ...)
 	va_end(ap);
 }
 
+static char *
+strdup(const char *s)
+{
+	size_t l = strlen(s);
+	char *d = malloc(l + 1);
+	if (d) memcpy(d, s, l + 1);
+	return d;
+}
+
 static unsigned int
 xtoi(char hex)
 {
