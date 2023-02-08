@@ -12,6 +12,6 @@ INCS = `pkg-config --cflags x11 gl xrender xext`
 LIBS = -ldl -lm `pkg-config --libs x11 gl xrender xext`
 
 # Flags
-CPPFLAGS += -DVERSION=\"$(VERSION)\"
+CPPFLAGS += -DVERSION=\"$(VERSION)\" -D_POSIX_C_SOURCE=200809L
 CFLAGS += $(INCS) $(CPPFLAGS) -Wall -Wextra -O2 -g
 LDFLAGS += $(LIBS)

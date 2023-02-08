@@ -8,6 +8,8 @@
 #include <errno.h>
 #include <locale.h>
 #include <ctype.h>
+#include <limits.h>
+#include <math.h>
 
 #include "glad.h"
 #include <X11/Xlib.h>
@@ -43,6 +45,7 @@ struct image images[MAX_IMAGE_COUNT];
 struct image *hover_img;
 struct image *focus_img;
 char *argv0;
+char *session_file;
 
 int orgx;
 int orgy;
@@ -98,6 +101,9 @@ GLint loc_img;
 char logbuf[4096];
 GLsizei logsize;
 
+static void write_session(const char *name);
+static void read_session(const char *name);
+
 static void
 die(const char *fmt, ...)
 {
@@ -120,7 +126,7 @@ err(const char *fmt, ...)
 	va_end(ap);
 }
 
-static char *
+char *
 strdup(const char *s)
 {
 	size_t l = strlen(s);
@@ -155,11 +161,11 @@ urldecode(char *str, char *url, size_t len)
 	return 0;
 }
 
-static void load_at(const char *name, int x, int y);
+static void load_at(const char *name, int x, int y, float scale);
 static void
 load(const char *name)
 {
-	load_at(name, 0, 0);
+	load_at(name, 0, 0, 1.0);
 }
 
 static struct image
@@ -647,7 +653,7 @@ free:
 }
 
 static void
-load_at(const char *name, int x, int y)
+load_at(const char *name, int x, int y, float scale)
 {
 	GLenum format;
 	int w, h, n;
@@ -701,6 +707,7 @@ load_at(const char *name, int x, int y)
 
 	images[image_count] = create_image(w, h, format, GL_UNSIGNED_BYTE, data);
 	images[image_count].path = strdup(name);
+	images[image_count].scale = scale;
 	images[image_count].posx = x - w / 2;
 	images[image_count].posy = y - h / 2;
 	image_count++;
@@ -802,6 +809,9 @@ xev_keypress(XEvent *ev)
 	case XK_KP_0:
 	case XK_Home:
 		zoom = 1;
+		break;
+	case XK_S:
+		write_session(session_file);
 		break;
 	case XK_space:
 		printf("%s", argv0);
@@ -970,6 +980,152 @@ run(void)
 	}
 }
 
+char *
+strtrim(char *s)
+{
+	while (*s != '\0' && isspace(*s)) s++;
+	return s;
+}
+
+char *
+argsplit(char *s)
+{
+	int esc = 0;
+	char *p = s;
+
+	while (*s != '\0' && (esc || !isspace(*s))) {
+		char c = *s++;
+		if (esc == '\\') { *p++ = c; esc = 0; continue; }
+		if (c == esc)  { esc = 0; continue; }
+		if (c == '\\') { esc = c; continue; }
+		if (c == '\'') { esc = c; continue; }
+		if (c == '"')  { esc = c; continue; }
+		*p++ = c;
+	}
+	if (*s == '\0') {
+		*p = '\0';
+		return NULL; /* end of arg */
+	}
+	*p = '\0';
+	return s + 1;
+}
+
+static void
+open_file(size_t argc, const char **argv)
+{
+	const char *file;
+	const char *a;
+	float scale = 1.0;
+	int x = 0, y = 0;
+	size_t i;
+
+	if (argc < 1)
+		return;
+	file = argv[0];
+	for (i = 1; i < argc; i++) {
+		a = argv[i];
+		if (strncmp(a, "scale=", strlen("scale=")) == 0) {
+			float f = strtof(a + strlen("scale="), NULL);
+			if (f == HUGE_VALF || f == HUGE_VALL) {
+				err("%s: %s\n", a, strerror(errno));
+				return;
+			}
+			scale = f;
+		}
+		else if (strncmp(a, "x=", strlen("x=")) == 0) {
+			long v = strtol(a + strlen("x="), NULL, 0);
+			if (v == LONG_MIN || v == LONG_MAX) {
+				err("%s: %s\n", a, strerror(errno));
+				return;
+			}
+			x = v;
+		}
+		else if (strncmp(a, "y=", strlen("y=")) == 0) {
+			long v = strtol(a + strlen("y="), NULL, 0);
+			if (v == LONG_MIN || v == LONG_MAX) {
+				err("%s: %s\n", a, strerror(errno));
+				return;
+			}
+			y = v;
+		}
+	}
+	load_at(file, x, y, scale);
+}
+
+static void
+parse_line(char *l)
+{
+	const char *argv[16];
+	size_t argc = 0;
+	char *e;
+
+	do {
+		l = strtrim(l);
+		if (*l == '\0') break;
+		e = argsplit(l);
+		argv[argc++] = l;
+		l = e;
+	} while (l != NULL && argc < LEN(argv));
+	if (argc > 0)
+		open_file(argc, argv);
+}
+
+static void
+read_session(const char *name)
+{
+	char *line = NULL;
+	size_t n = 0;
+	ssize_t l;
+	FILE *f;
+
+	if (!name)
+		return;
+	f = fopen(name, "r");
+	if (!f) {
+		if (errno == ENOENT)
+			err("%s: %s\n", name, strerror(errno));
+		else
+			die("%s: %s\n", name, strerror(errno));
+		return;
+	}
+
+	while ((l = getline(&line, &n, f)) != -1) {
+		char *p;
+		p = strchr(line, '#');
+		if (p) *p = '\0';
+		p = strchr(line, '\n');
+		if (p) *p = '\0';
+		parse_line(line);
+	}
+	free(line);
+	fclose(f);
+}
+
+static void
+write_session(const char *name)
+{
+	size_t i;
+	FILE *f;
+
+	if (!name)
+		return;
+	f = fopen(name, "w");
+	if (!f) {
+		err("%s: %s\n", name, strerror(errno));
+		return;
+	}
+
+	fprintf(f, "#!%s -f\n", argv0);
+	for (i = 0; i < image_count; i++) {
+		const char *p = images[i].path;
+		int x = images[i].posx + images[i].width / 2;
+		int y = images[i].posy + images[i].height / 2;
+		float s = images[i].scale;
+		fprintf(f, "'%s' x=%d y=%d scale=%f\n", p, x, y, s);
+	}
+	fclose(f);
+}
+
 static void
 usage(void)
 {
@@ -987,12 +1143,18 @@ main(int argc, char **argv)
 	case 'v':
 		err("%s %s\n", argv0, VERSION);
 		exit(0);
+	case 'f':
+		session_file = EARGF(usage());
+		break;
 	case 'h':
 	default:
 		usage();
 	} ARGEND;
 
 	init();
+	/* glX needs to be initialized */
+	if (session_file)
+		read_session(session_file);
 
 	x = 0, y = 0;
 	for (i = 0; i < argc; i++) {
@@ -1000,7 +1162,7 @@ main(int argc, char **argv)
 			sscanf(argv[i], "+%dx%d", &x, &y);
 			continue;
 		}
-		load_at(argv[i], x, y);
+		load_at(argv[i], x, y, 1.0);
 		x = 0, y = 0;
 	}
 
