@@ -8,6 +8,6 @@ and scale images.
 Building
 ========
 
-To build sref you will need X11 and GLX with an openGL backend, then run:
+To build sref you will need X11 and GLX with an openGL ES backend, then run:
 
     make
