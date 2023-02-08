@@ -11,13 +11,16 @@
 #include <limits.h>
 #include <math.h>
 
-#include "glad.h"
 #include <X11/Xlib.h>
 #include <X11/cursorfont.h>
 #include <X11/Xatom.h>
 #include <X11/extensions/Xrender.h>
 #include <X11/extensions/shape.h>
 #include <GL/glx.h>
+#undef GL_TIMEOUT_IGNORED
+#undef GL_INVALID_INDEX
+#include "glad.h"
+
 #include "stb_image.h"
 #include "qoi.h"
 
@@ -236,26 +239,27 @@ shader_init(void)
 		 1.0,  1.0,
 	};
 	const char *vert =
-		"#version 330 core\n"
+		"#version 300 es\n"
+		"precision mediump float;\n"
 		"layout(location = 0) in vec2 in_pos;\n"
 		"out vec2 tex;\n"
 		"uniform vec2 res;\n"
 		"uniform vec2 off;\n"
 		"uniform vec2 ext;\n"
 		"uniform float scale;\n"
-		"void main()\n"
-		"{\n"
+		"void main() {\n"
 		"	vec2 pos = -1.0 + (in_pos * ext + off) * 2.0 / res;\n"
 		"	gl_Position = vec4(pos.x, pos.y, 0.0, 1.0);\n"
 		"	tex = vec2(in_pos.x, 1.0 - in_pos.y);\n"
 		"}\n";
 	const char *frag =
-		"#version 330 core\n"
+		"#version 300 es\n"
+		"precision mediump float;\n"
 		"in vec2 tex;\n"
+		"out vec3 color;\n"
 		"uniform sampler2D img;\n"
-		"void main()\n"
-		"{\n"
-		"	gl_FragColor = texture(img, tex);\n"
+		"void main() {\n"
+		"	color = texture(img, tex).rgb;\n"
 		"}\n";
 	GLint vert_size = strlen(vert);
 	GLint frag_size = strlen(frag);
@@ -510,7 +514,7 @@ glx_init(void)
 	};
 	int ctx_attribs[] = {
 		GLX_CONTEXT_MAJOR_VERSION_ARB, 3,
-		GLX_CONTEXT_MINOR_VERSION_ARB, 3,
+		GLX_CONTEXT_MINOR_VERSION_ARB, 0,
 		None
 	};
 	GLXFBConfig *fbc;
@@ -563,7 +567,7 @@ glx_init(void)
 		die("Failed to create an openGL context\n");
 	glXMakeCurrent(dpy, win, ctx);
 
-	if (!gladLoadGL((GLADloadfunc) glXGetProcAddress))
+	if (!gladLoadGLES2((GLADloadfunc) glXGetProcAddress))
 		die("GL init failed\n");
 
 	XFree(fbc);
