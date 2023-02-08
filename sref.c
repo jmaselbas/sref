@@ -27,7 +27,25 @@ struct color {
 	float r, g, b;
 };
 
+struct shortcut {
+	unsigned int mod;
+	KeySym keysym;
+	void (*func)(void);
+};
+
+/* X modifiers */
+#define XK_ANY_MOD	UINT_MAX
+#define XK_NO_MOD	0
+
+static void zoomreset(void);
+static void saveboard(void);
+
 #include "config.h"
+
+static int mod_match(unsigned int mask, unsigned int state)
+{
+	return mask == XK_ANY_MOD || mask == (state & ~ignoremod);
+}
 
 #define LEN(a) (sizeof(a)/sizeof(*a))
 struct image {
@@ -726,6 +744,18 @@ resize(int w, int h)
 	height = (h < 0) ? 0 : h;
 }
 
+static void
+zoomreset(void)
+{
+	zoom = 1;
+}
+
+static void
+saveboard(void)
+{
+	write_session(session_file);
+}
+
 static void *
 xgetprop(Window w, Atom prop, Atom *type, int *fmt, size_t *cnt)
 {
@@ -802,27 +832,14 @@ xev_selnotify(XEvent *e)
 static void
 xev_keypress(XEvent *ev)
 {
+	XKeyEvent *e = &ev->xkey;
+	unsigned int s = e->state;
+	KeySym k = XLookupKeysym(e, 1);
 	size_t i;
 
-	switch (XLookupKeysym(&ev->xkey, 1)) {
-	case XK_0:
-	case XK_KP_0:
-	case XK_Home:
-		zoom = 1;
-		break;
-	case XK_S:
-		write_session(session_file);
-		break;
-	case XK_space:
-		printf("%s", argv0);
-		for (i = 0; i < image_count; i++) {
-			int x = images[i].posx + images[i].width / 2;
-			int y = images[i].posy + images[i].height / 2;
-			printf(" +%dx%d %s", x, y, images[i].path);
-		}
-		puts("");
-
-		break;
+	for (i = 0; i < LEN(shortcuts); i++) {
+		if (k == shortcuts[i].keysym && mod_match(shortcuts[i].mod, s))
+			return shortcuts[i].func();
 	}
 }
 
