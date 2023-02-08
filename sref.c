@@ -39,24 +39,24 @@ struct image {
 	float scale;
 	const char *path;
 };
-size_t image_count;
-struct image images[MAX_IMAGE_COUNT];
+static size_t image_count;
+static struct image images[MAX_IMAGE_COUNT];
 
-struct image *hover_img;
-struct image *focus_img;
+static struct image *hover_img;
+static struct image *focus_img;
 char *argv0;
-char *session_file;
+static char *session_file;
 
-int orgx;
-int orgy;
-float zoom = 1;
-int mousex;
-int mousey;
-int xrel;
-int yrel;
-int lclick;
-int mclick;
-int rclick;
+static int orgx;
+static int orgy;
+static float zoom = 1;
+static int mousex;
+static int mousey;
+static int xrel;
+static int yrel;
+static int lclick;
+static int mclick;
+static int rclick;
 
 enum action {
 	NONE = 0,
@@ -87,19 +87,19 @@ static char *dndtargetnames[] = {
 static Atom dndtargetatoms[LEN(dndtargetnames)];
 static Atom dndtarget;
 
-Cursor movecursor, grabcursor, scalecursor, defaultcursor;
-GLXContext ctx;
+static Cursor movecursor, grabcursor, scalecursor, defaultcursor;
+static GLXContext ctx;
 
-GLuint quad_vao;
-GLuint quad_vbo;
-GLuint sprg;
-GLint loc_res;
-GLint loc_off;
-GLint loc_ext;
-GLint loc_img;
+static GLuint quad_vao;
+static GLuint quad_vbo;
+static GLuint sprg;
+static GLint loc_res;
+static GLint loc_off;
+static GLint loc_ext;
+static GLint loc_img;
 
-char logbuf[4096];
-GLsizei logsize;
+static char logbuf[4096];
+static GLsizei logsize;
 
 static void write_session(const char *name);
 static void read_session(const char *name);
