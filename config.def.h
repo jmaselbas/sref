@@ -21,3 +21,17 @@ static unsigned int height = 800;
 static int customshape = 1;
 
 #define MAX_IMAGE_COUNT 1024
+
+/*
+ * State bits to ignore when matching key or button events.  By default,
+ * numlock (Mod2Mask) are ignored.
+ */
+static unsigned int ignoremod = Mod2Mask;
+
+struct shortcut shortcuts[] = {
+	/* mask                 keysym          function */
+	{ XK_ANY_MOD,           XK_0,           zoomreset },
+	{ XK_ANY_MOD,           XK_KP_0,        zoomreset },
+	{ XK_ANY_MOD,           XK_Home,        zoomreset },
+	{ XK_ANY_MOD,           XK_S,           saveboard },
+};
