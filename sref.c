@@ -40,8 +40,10 @@ struct shortcut {
 #define XK_ANY_MOD	UINT_MAX
 #define XK_NO_MOD	0
 
+/* function definitions that can be used for shortcuts in config.h */
 static void zoomreset(void);
 static void saveboard(void);
+static void toggleshape(void);
 
 #include "config.h"
 
@@ -758,6 +760,12 @@ static void
 saveboard(void)
 {
 	write_session(session_file);
+}
+
+static void
+toggleshape(void)
+{
+	customshape = !customshape;
 }
 
 static void *

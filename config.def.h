@@ -34,4 +34,5 @@ struct shortcut shortcuts[] = {
 	{ XK_ANY_MOD,           XK_KP_0,        zoomreset },
 	{ XK_ANY_MOD,           XK_Home,        zoomreset },
 	{ XK_ANY_MOD,           XK_S,           saveboard },
+	{ XK_ANY_MOD,           XK_B,           toggleshape },
 };
